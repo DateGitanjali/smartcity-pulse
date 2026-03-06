@@ -1,0 +1,30 @@
+# Virtual environment - NEVER commit this
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables - NEVER commit
+.env
+
+# ML artifacts
+models/*.pkl
+models/*.h5
+mlruns/
+data/*.csv
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS files
+.DS_Store
+Thumbs.db
