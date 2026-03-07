@@ -97,7 +97,7 @@ class CityDataFetcher:
         try:
             params = {
                 "q" : query,
-                "apikey" : self.news_key,
+               "apiKey" : self.news_key,
                 'pageSize' : 20,
                 "language" : "en"
             }
