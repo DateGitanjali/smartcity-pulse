@@ -2,12 +2,21 @@
 Preprocessor — SmartCity Pulse
 Cleans raw data and engineers features for ML models.
 """
-import pandas as pd                              # manipulate DataFrames
-import numpy as np                               # math operations
-from sklearn.preprocessing import StandardScaler # scale features to same range
-import logging                                   # professional logging
 
-logger = logging.getLogger(__name__)             # logger for this file
+# import pandas for data manipulation
+import pandas as pd
+
+# import numpy for math operations
+import numpy as np
+
+# import StandardScaler to scale features to same range
+from sklearn.preprocessing import StandardScaler
+
+# import logging for professional log messages
+import logging
+
+# create logger for this file
+logger = logging.getLogger(__name__)
 
 
 class WeatherPreprocessor:
@@ -20,8 +29,11 @@ class WeatherPreprocessor:
     """
 
     def __init__(self):
-        self.scaler = StandardScaler() # one scaler reused across calls
-        self.is_fitted = False         # tracks if scaler has been fitted yet
+        # create one scaler — reused across all calls
+        self.scaler = StandardScaler()
+
+        # tracks whether scaler has been fitted yet
+        self.is_fitted = False
 
     def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -33,49 +45,64 @@ class WeatherPreprocessor:
         Returns:
             DataFrame with new engineered features added.
         """
-        df = df.copy()  # never modify original data — always work on a copy
+        # never modify original data — always work on a copy
+        df = df.copy()
 
-        # Extract time-based features from datetime column
-        df["hour"]        = df["dt"].dt.hour          # 0-23
-        df["day_of_week"] = df["dt"].dt.dayofweek     # 0=Monday, 6=Sunday
-        df["month"]       = df["dt"].dt.month         # 1-12
+        # extract hour from datetime — 0 to 23
+        df["hour"] = df["dt"].dt.hour
 
-        # Binary features — 1 means yes, 0 means no
-        df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)  # Sat=5, Sun=6
-        df["is_night"]   = ((df["hour"] >= 22) | (df["hour"] <= 6)).astype(int)
+        # extract day of week — 0=Monday, 6=Sunday
+        df["day_of_week"] = df["dt"].dt.dayofweek
 
-        # Target variable — what we want to predict
-        df["will_rain"] = (df["rain_1h"] > 0).astype(int)  # 1=rain, 0=no rain
+        # extract month — 1 to 12
+        df["month"] = df["dt"].dt.month
 
-        # Temperature category — 0=Cold, 1=Mild, 2=Warm, 3=Hot
+        # 1 if Saturday or Sunday, 0 otherwise
+        df["is_weekend"] = (df["day_of_week"] >= 5).astype(int)
+
+        # 1 if night time (10pm to 6am), 0 otherwise
+        df["is_night"] = ((df["hour"] >= 22) | (df["hour"] <= 6)).astype(int)
+
+        # target for rain classification — 1=rain, 0=no rain
+        df["will_rain"] = (df["rain_1h"] > 0).astype(int)
+
+        # temperature category — 0=Cold, 1=Mild, 2=Warm, 3=Hot
         df["temp_category"] = pd.cut(
             df["temp"],
             bins=[0, 15, 25, 35, 50],
             labels=[0, 1, 2, 3]
         ).astype(int)
 
+        # hour category — 0=Night, 1=Morning, 2=Afternoon, 3=Evening
+        df["hour_category"] = pd.cut(
+            df["hour"],
+            bins=[-1, 6, 12, 18, 24],
+            labels=[0, 1, 2, 3]
+        ).astype(int)
+
+        # log shape after engineering
         logger.info(f"Engineered features. Shape: {df.shape}")
         return df
 
-    def prepare(self, df: pd.DataFrame, target: str = "will_rain"):
+    def prepare(self, df: pd.DataFrame, target: str = "hour_category"):
         """
         Full preparation pipeline — engineer, clean, scale, split.
 
         Args:
             df: Raw weather DataFrame
-            target: Column name to predict
+            target: Column name to predict (default: hour_category)
 
         Returns:
             X: Scaled feature matrix ready for ML models
             y: Target variable
         """
-        # Step 1 — create new features
+        # step 1 — create new features
         df = self.engineer_features(df)
 
-        # Step 2 — fill any missing values with 0
+        # step 2 — fill any missing values with 0
         df = df.fillna(0)
 
-        # Step 3 — define which columns are features
+        # step 3 — define which columns are features
         feature_cols = [
             "hour", "day_of_week", "month",
             "is_weekend", "is_night",
@@ -83,44 +110,50 @@ class WeatherPreprocessor:
             "feels_like", "temp_category"
         ]
 
-        X = df[feature_cols]  # features — what model learns FROM
-        y = df[target]        # target — what model learns TO predict
+        # X = features — what model learns FROM
+        X = df[feature_cols]
 
-        # Step 4 — scale features
-        # fit_transform on first call — learns mean and std from this data
-        # transform only on later calls — uses already learned mean and std
+        # y = target — what model learns TO predict
+        y = df[target]
+
+        # step 4 — scale features
+        # fit_transform on first call — learns mean and std
+        # transform only on later calls — uses already learned values
         if not self.is_fitted:
-            X_scaled = self.scaler.fit_transform(X)  # learn + scale
+            X_scaled = self.scaler.fit_transform(X)
             self.is_fitted = True
         else:
-            X_scaled = self.scaler.transform(X)      # only scale, don't relearn
+            # only scale — do not relearn from new data
+            X_scaled = self.scaler.transform(X)
 
-        # Convert back to DataFrame so column names are preserved
+        # convert back to DataFrame to preserve column names
         X_scaled = pd.DataFrame(X_scaled, columns=feature_cols)
 
+        # log final shape
         logger.info(f"Prepared data. X shape: {X_scaled.shape}")
         return X_scaled, y
 
 
-# This block only runs when you run this file directly
-# It does NOT run when another file imports this file
+# runs only when you run this file directly
 if __name__ == "__main__":
     import sys
-    sys.path.append("..")                        # so Python finds src/
+
+    # add pipeline folder so Python finds data_fetcher
+    sys.path.append("src/pipeline")
     from data_fetcher import CityDataFetcher
 
-    # Fetch live data
+    # fetch live weather data
     fetcher = CityDataFetcher()
     df = fetcher.fetch_weather("Mumbai")
 
-    # Preprocess it
+    # preprocess data
     preprocessor = WeatherPreprocessor()
     X, y = preprocessor.prepare(df)
 
+    # print results
     print("\n--- FEATURES ---")
-    print(X.head())                              # first 5 rows
-    print(f"\nX shape: {X.shape}")               # rows x columns
-    print(f"y shape: {y.shape}")                 # number of targets
-
+    print(X.head())
+    print(f"\nX shape: {X.shape}")
+    print(f"y shape: {y.shape}")
     print(f"\nTarget distribution:")
-    print(y.value_counts())                      # how many 0s and 1s
+    print(y.value_counts())
